@@ -1,0 +1,60 @@
+name: verify and add member
+on:
+  issues:
+    types: [opened]
+
+jobs:
+  verify-and-add:
+    if: contains(github.event.issue.labels.*.name, 'add-me')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
+      - name: install dependencies
+        run: pip install requests beautifulsoup4
+
+      - name: parse issue form
+        id: parse
+        uses: stefanbuck/github-issue-parser@v3
+        with:
+          template-path: .github/ISSUE_TEMPLATE/join-webring.yml
+
+      - name: run verification
+        id: verify
+        run: |
+          # Use quotes around the EID to prevent shell issues
+          RESULT=$(python verify.py "${{ steps.parse.outputs.eid }}")
+          echo "status=$RESULT" >> $GITHUB_OUTPUT
+        continue-on-error: true
+
+      - name: update members.json
+        if: steps.verify.outputs.status == 'verified'
+        env:
+          MEMBER_URL: ${{ steps.parse.outputs.website_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          jq ". += [\"$MEMBER_URL\"] | unique" members.json > temp.json && mv temp.json members.json
+
+          git config --global user.name "webring bot"
+          git config --global user.email "bot@github.com"
+          git add members.json
+          git commit -m "added $MEMBER_URL to the webring!"
+          git push
+          
+          gh issue close ${{ github.event.issue.number }} --comment "verification successful! you've been added to the ring. pls don't forget to add the widget to your site!"
+
+      - name: On Failure
+        if: steps.verify.outputs.status != 'verified'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue comment ${{ github.event.issue.number }} --body "could not verify you automatically. @krisub will take a look manually!"

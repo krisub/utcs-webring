@@ -1,0 +1,23 @@
+name: join the webring
+description: add your site
+title: "[JOIN]: add my website"
+labels: ["add-me"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        hai ty for wanting to join i need this info from you:
+  - type: input
+    id: website_url
+    attributes:
+      label: your website URL
+      placeholder: https://whatever-your-site-is.com/
+    validations:
+      required: true
+  - type: input
+    id: eid
+    attributes:
+      label: your UT EID (for verification)
+      placeholder: abc1234
+    validations:
+      required: true
