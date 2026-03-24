@@ -5,7 +5,6 @@ on:
 
 jobs:
   verify-and-add:
-    if: contains(github.event.issue.labels.*.name, 'add-me')
     runs-on: ubuntu-latest
     permissions:
       contents: write
