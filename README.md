@@ -3,8 +3,8 @@
 ## how to join
 
 1.  open a new issue and select the 'join the webring' template
-2.  provide your website url and eid
-3.  if you're a UTCS major, you'll be automatically verified!
+2.  provide your website url and `@utexas.edu` email
+3.  if your email is valid, you'll be automatically verified!
 
 after submitting your issue, copy and paste this HTML snippet into your
 website's homepage where you want the webring navigation to appear. replace 

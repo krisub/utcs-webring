@@ -18,9 +18,6 @@ jobs:
         with:
           python-version: '3.x'
 
-      - name: install dependencies
-        run: pip install requests beautifulsoup4
-
       - name: parse issue form
         id: parse
         uses: stefanbuck/github-issue-parser@v3
@@ -30,22 +27,19 @@ jobs:
       - name: run verification
         id: verify
         env:
-          EID: ${{ fromJson(steps.parse.outputs.jsonString).eid }}
+          UT_EMAIL: ${{ fromJson(steps.parse.outputs.jsonString).ut_email }}
         run: |
-          if [ -z "$EID" ]; then
-            echo "parser returned an empty EID"
-            exit 1
+          if [[ -n "$UT_EMAIL" && "$UT_EMAIL" =~ ^[A-Za-z0-9._%+-]+@utexas\.edu$ ]]; then
+            echo "status=verified" >> "$GITHUB_OUTPUT"
+          else
+            echo "status=failed" >> "$GITHUB_OUTPUT"
           fi
-          
-          RESULT=$(python verify.py "$EID")
-          echo "status=$RESULT" >> $GITHUB_OUTPUT
-        continue-on-error: true
 
       - name: update members.json
         if: steps.verify.outputs.status == 'verified'
         env:
           MEMBER_URL: ${{ fromJson(steps.parse.outputs.jsonString).website_url }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.ADMIN_GH_TOKEN }}
         run: |
           jq ". += [\"$MEMBER_URL\"] | unique" members.json > temp.json && mv temp.json members.json
 
@@ -55,11 +49,11 @@ jobs:
           git commit -m "added $MEMBER_URL to the webring!"
           git push
           
-          gh issue close ${{ github.event.issue.number }} --comment "verification successful! you've been added to the ring. pls don't forget to add the widget to your site!"
+          gh issue delete ${{ github.event.issue.number }} --yes
 
       - name: failure
         if: steps.verify.outputs.status != 'verified'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh issue comment ${{ github.event.issue.number }} --body "could not verify you automatically. @krisub will take a look manually!"
+          gh issue comment ${{ github.event.issue.number }} --body "could not verify that this is a valid @utexas.edu email automatically. @krisub will take a look manually!"
