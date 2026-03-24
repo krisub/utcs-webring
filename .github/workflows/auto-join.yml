@@ -5,6 +5,7 @@ on:
 
 jobs:
   verify-and-add:
+    if: contains(github.event.issue.labels.*.name, 'add-me')
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -28,9 +29,36 @@ jobs:
         id: verify
         env:
           UT_EMAIL: ${{ fromJson(steps.parse.outputs.jsonString).ut_email }}
+          MEMBER_URL: ${{ fromJson(steps.parse.outputs.jsonString).website_url }}
         run: |
-          if [[ -n "$UT_EMAIL" && "$UT_EMAIL" =~ ^[A-Za-z0-9._%+-]+@utexas\.edu$ ]]; then
+          NORMALIZED_URL="$(python3 - <<'PY'
+          from urllib.parse import urlsplit, urlunsplit
+          import os
+          import sys
+
+          raw = os.environ["MEMBER_URL"].strip()
+          parts = urlsplit(raw)
+
+          if parts.scheme not in {"http", "https"} or not parts.netloc or parts.username or parts.password:
+              sys.exit(1)
+
+          host = (parts.hostname or "").lower()
+          port = parts.port
+          default_port = (parts.scheme == "http" and port == 80) or (parts.scheme == "https" and port == 443)
+          netloc = host if port is None or default_port else f"{host}:{port}"
+          path = parts.path or "/"
+          if path != "/":
+              path = path.rstrip("/")
+              if not path:
+                  path = "/"
+
+          print(urlunsplit((parts.scheme.lower(), netloc, path, "", "")))
+          PY
+          )"
+
+          if [[ -n "$UT_EMAIL" && "$UT_EMAIL" =~ ^[A-Za-z0-9._%+-]+@([A-Za-z0-9-]+\.)*utexas\.edu$ && -n "$NORMALIZED_URL" ]]; then
             echo "status=verified" >> "$GITHUB_OUTPUT"
+            echo "member_url=$NORMALIZED_URL" >> "$GITHUB_OUTPUT"
           else
             echo "status=failed" >> "$GITHUB_OUTPUT"
           fi
@@ -38,7 +66,7 @@ jobs:
       - name: update members.json
         if: steps.verify.outputs.status == 'verified'
         env:
-          MEMBER_URL: ${{ fromJson(steps.parse.outputs.jsonString).website_url }}
+          MEMBER_URL: ${{ steps.verify.outputs.member_url }}
           GH_TOKEN: ${{ secrets.ADMIN_GH_TOKEN }}
         run: |
           jq ". += [\"$MEMBER_URL\"] | unique" members.json > temp.json && mv temp.json members.json
@@ -48,7 +76,7 @@ jobs:
           git add members.json
           git commit -m "added $MEMBER_URL to the webring!"
           git push
-          
+
           gh issue delete ${{ github.event.issue.number }} --yes
 
       - name: failure
@@ -56,4 +84,4 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh issue comment ${{ github.event.issue.number }} --body "could not verify that this is a valid @utexas.edu email automatically. @krisub will take a look manually!"
+          gh issue comment ${{ github.event.issue.number }} --body "could not verify this request automatically. please make sure you used a valid http(s) website URL and an @utexas.edu email. @krisub can still take a look manually!"

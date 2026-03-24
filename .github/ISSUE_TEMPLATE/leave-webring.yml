@@ -1,0 +1,16 @@
+name: leave the webring
+description: remove your site
+title: "[LEAVE]: remove my website"
+labels: ["remove-me"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        if you want to remove your site, submit the URL here and the bot will give you a verification token to place on your site.
+  - type: input
+    id: website_url
+    attributes:
+      label: your website URL
+      placeholder: https://whatever-your-site-is.com/
+    validations:
+      required: true

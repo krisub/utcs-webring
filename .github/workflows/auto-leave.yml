@@ -1,0 +1,262 @@
+name: verify and remove member
+on:
+  issues:
+    types: [opened]
+  issue_comment:
+    types: [created]
+
+jobs:
+  create-challenge:
+    if: github.event_name == 'issues' && contains(github.event.issue.labels.*.name, 'remove-me')
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+
+    steps:
+      - name: parse leave request
+        id: parse
+        env:
+          ISSUE_BODY: ${{ github.event.issue.body }}
+        run: |
+          WEBSITE_URL="$(python3 - <<'PY'
+          import os
+          import re
+
+          body = os.environ["ISSUE_BODY"]
+          match = re.search(r"###\s+your website URL\s*\n\s*(.+)", body, re.IGNORECASE)
+          if not match:
+              raise SystemExit(1)
+          print(match.group(1).strip())
+          PY
+          )"
+          echo "website_url=$WEBSITE_URL" >> "$GITHUB_OUTPUT"
+
+      - name: normalize website URL
+        id: normalize
+        env:
+          MEMBER_URL: ${{ steps.parse.outputs.website_url }}
+        run: |
+          NORMALIZED_URL="$(python3 - <<'PY'
+          from urllib.parse import urlsplit, urlunsplit
+          import os
+          import sys
+
+          raw = os.environ["MEMBER_URL"].strip()
+          parts = urlsplit(raw)
+
+          if parts.scheme not in {"http", "https"} or not parts.netloc or parts.username or parts.password:
+              sys.exit(1)
+
+          host = (parts.hostname or "").lower()
+          if host in {"localhost", "127.0.0.1", "::1"}:
+              sys.exit(1)
+
+          port = parts.port
+          default_port = (parts.scheme == "http" and port == 80) or (parts.scheme == "https" and port == 443)
+          netloc = host if port is None or default_port else f"{host}:{port}"
+          path = parts.path or "/"
+          if path != "/":
+              path = path.rstrip("/")
+              if not path:
+                  path = "/"
+
+          print(urlunsplit((parts.scheme.lower(), netloc, path, "", "")))
+          PY
+          )"
+          echo "member_url=$NORMALIZED_URL" >> "$GITHUB_OUTPUT"
+
+      - name: create verification token
+        id: token
+        env:
+          MEMBER_URL: ${{ steps.normalize.outputs.member_url }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          TOKEN="$(python3 - <<'PY'
+          import hashlib
+          import os
+
+          payload = f"{os.environ['ISSUE_NUMBER']}:{os.environ['MEMBER_URL']}:leave-webring"
+          digest = hashlib.sha256(payload.encode()).hexdigest()[:16]
+          print(f"utcs-webring-remove-{digest}")
+          PY
+          )"
+          echo "value=$TOKEN" >> "$GITHUB_OUTPUT"
+
+      - name: post verification instructions
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MEMBER_URL: ${{ steps.normalize.outputs.member_url }}
+          VERIFY_TOKEN: ${{ steps.token.outputs.value }}
+        run: |
+          gh issue comment ${{ github.event.issue.number }} --body "$(cat <<EOF
+          to verify that you control \`$MEMBER_URL\`, add this token to your site:
+
+          \`$VERIFY_TOKEN\`
+
+          you can use either method:
+          - add a file at \`/.well-known/utcs-webring.txt\` whose contents include the token
+          - add the token anywhere in the homepage HTML, like a \`<meta>\` tag or HTML comment
+
+          once it is live, comment exactly:
+
+          \`/verify\`
+          EOF
+          )"
+
+      - name: invalid request fallback
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue comment ${{ github.event.issue.number }} --body "i couldn't parse a valid public http(s) website URL from this leave request, so i couldn't start verification. @krisub can still handle it manually."
+
+  verify-and-remove:
+    if: github.event_name == 'issue_comment' && contains(github.event.issue.labels.*.name, 'remove-me') && github.event.comment.body == '/verify' && github.event.comment.user.login == github.event.issue.user.login
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: parse leave request
+        id: parse
+        env:
+          ISSUE_BODY: ${{ github.event.issue.body }}
+        run: |
+          WEBSITE_URL="$(python3 - <<'PY'
+          import os
+          import re
+
+          body = os.environ["ISSUE_BODY"]
+          match = re.search(r"###\s+your website URL\s*\n\s*(.+)", body, re.IGNORECASE)
+          if not match:
+              raise SystemExit(1)
+          print(match.group(1).strip())
+          PY
+          )"
+          echo "website_url=$WEBSITE_URL" >> "$GITHUB_OUTPUT"
+
+      - name: normalize website URL
+        id: normalize
+        env:
+          MEMBER_URL: ${{ steps.parse.outputs.website_url }}
+        run: |
+          NORMALIZED_URL="$(python3 - <<'PY'
+          from urllib.parse import urlsplit, urlunsplit
+          import os
+          import sys
+
+          raw = os.environ["MEMBER_URL"].strip()
+          parts = urlsplit(raw)
+
+          if parts.scheme not in {"http", "https"} or not parts.netloc or parts.username or parts.password:
+              sys.exit(1)
+
+          host = (parts.hostname or "").lower()
+          if host in {"localhost", "127.0.0.1", "::1"}:
+              sys.exit(1)
+
+          port = parts.port
+          default_port = (parts.scheme == "http" and port == 80) or (parts.scheme == "https" and port == 443)
+          netloc = host if port is None or default_port else f"{host}:{port}"
+          path = parts.path or "/"
+          if path != "/":
+              path = path.rstrip("/")
+              if not path:
+                  path = "/"
+
+          print(urlunsplit((parts.scheme.lower(), netloc, path, "", "")))
+          PY
+          )"
+          echo "member_url=$NORMALIZED_URL" >> "$GITHUB_OUTPUT"
+
+      - name: create verification token
+        id: token
+        env:
+          MEMBER_URL: ${{ steps.normalize.outputs.member_url }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          TOKEN="$(python3 - <<'PY'
+          import hashlib
+          import os
+
+          payload = f"{os.environ['ISSUE_NUMBER']}:{os.environ['MEMBER_URL']}:leave-webring"
+          digest = hashlib.sha256(payload.encode()).hexdigest()[:16]
+          print(f"utcs-webring-remove-{digest}")
+          PY
+          )"
+          echo "value=$TOKEN" >> "$GITHUB_OUTPUT"
+
+      - name: verify website control
+        id: verify
+        env:
+          MEMBER_URL: ${{ steps.normalize.outputs.member_url }}
+          VERIFY_TOKEN: ${{ steps.token.outputs.value }}
+        run: |
+          HOMEPAGE="$(mktemp)"
+          WELL_KNOWN="$(mktemp)"
+
+          if ! curl --fail --silent --show-error --location --max-time 15 "$MEMBER_URL" > "$HOMEPAGE"; then
+            echo "status=failed" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          curl --fail --silent --show-error --location --max-time 15 "${MEMBER_URL%/}/.well-known/utcs-webring.txt" > "$WELL_KNOWN" || true
+
+          if grep -Fq "$VERIFY_TOKEN" "$HOMEPAGE" || grep -Fq "$VERIFY_TOKEN" "$WELL_KNOWN"; then
+            echo "status=verified" >> "$GITHUB_OUTPUT"
+          else
+            echo "status=failed" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: remove from members.json
+        if: steps.verify.outputs.status == 'verified'
+        env:
+          MEMBER_URL: ${{ steps.normalize.outputs.member_url }}
+          GH_TOKEN: ${{ secrets.ADMIN_GH_TOKEN }}
+        run: |
+          python3 - <<'PY'
+          from urllib.parse import urlsplit, urlunsplit
+          import json
+          import os
+
+
+          def normalize(url: str) -> str:
+              parts = urlsplit(url.strip())
+              host = (parts.hostname or "").lower()
+              port = parts.port
+              default_port = (parts.scheme == "http" and port == 80) or (parts.scheme == "https" and port == 443)
+              netloc = host if port is None or default_port else f"{host}:{port}"
+              path = parts.path or "/"
+              if path != "/":
+                  path = path.rstrip("/") or "/"
+              return urlunsplit((parts.scheme.lower(), netloc, path, "", ""))
+
+
+          member_url = os.environ["MEMBER_URL"]
+          with open("members.json", "r", encoding="utf-8") as f:
+              members = json.load(f)
+
+          filtered = [entry for entry in members if normalize(entry) != member_url]
+
+          with open("members.json", "w", encoding="utf-8") as f:
+              json.dump(filtered, f, indent=2)
+              f.write("\n")
+          PY
+
+          git config --global user.name "webring bot"
+          git config --global user.email "bot@github.com"
+          git add members.json
+          git commit -m "removed $MEMBER_URL from the webring!" || exit 0
+          git push
+
+          gh issue delete ${{ github.event.issue.number }} --yes
+
+      - name: verification failed
+        if: steps.verify.outputs.status != 'verified'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue comment ${{ github.event.issue.number }} --body "i couldn't find the verification token on your homepage or at \`/.well-known/utcs-webring.txt\` yet. once it's live, comment \`/verify\` again and i'll retry."
