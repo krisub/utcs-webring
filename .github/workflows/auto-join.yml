@@ -29,9 +29,9 @@ jobs:
 
       - name: run verification
         id: verify
+        env:
+          EID: ${{ fromJson(steps.parse.outputs.jsonString).eid }}
         run: |
-          EID="${{ steps.parse.outputs.eid }}"
-          
           if [ -z "$EID" ]; then
             echo "parser returned an empty EID"
             exit 1
@@ -44,7 +44,7 @@ jobs:
       - name: update members.json
         if: steps.verify.outputs.status == 'verified'
         env:
-          MEMBER_URL: ${{ steps.parse.outputs.website_url }}
+          MEMBER_URL: ${{ fromJson(steps.parse.outputs.jsonString).website_url }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           jq ". += [\"$MEMBER_URL\"] | unique" members.json > temp.json && mv temp.json members.json
@@ -57,7 +57,7 @@ jobs:
           
           gh issue close ${{ github.event.issue.number }} --comment "verification successful! you've been added to the ring. pls don't forget to add the widget to your site!"
 
-      - name: On Failure
+      - name: failure
         if: steps.verify.outputs.status != 'verified'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
