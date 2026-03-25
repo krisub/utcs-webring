@@ -69,7 +69,7 @@ jobs:
           MEMBER_URL: ${{ steps.verify.outputs.member_url }}
           GH_TOKEN: ${{ secrets.ADMIN_GH_TOKEN }}
         run: |
-          jq ". += [\"$MEMBER_URL\"] | unique" members.json > temp.json && mv temp.json members.json
+          jq "if index(\"$MEMBER_URL\") then . else . + [\"$MEMBER_URL\"] end" members.json > temp.json && mv temp.json members.json
 
           git config --global user.name "webring bot"
           git config --global user.email "bot@github.com"
