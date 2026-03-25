@@ -15,9 +15,9 @@ body:
     validations:
       required: true
   - type: input
-    id: ut_email
+    id: edu_email
     attributes:
-      label: your UT email (for verification)
-      placeholder: abc123@utexas.edu
+      label: your .edu email (for verification)
+      placeholder: you@school.edu
     validations:
       required: true

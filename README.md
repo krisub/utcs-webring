@@ -1,9 +1,11 @@
-# UTCS webring 
+# kiwi's webring 
+
+all the people that know me.
 
 ## how to join
 
 1.  open a new issue and select the 'join the webring' template
-2.  provide your website url and `utexas.edu` email
+2.  provide your website url and `.edu` email
 3.  if your email is valid, you'll be automatically verified!
 
 after submitting your issue, copy and paste this HTML snippet into your

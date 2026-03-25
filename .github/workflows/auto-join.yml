@@ -28,7 +28,7 @@ jobs:
       - name: run verification
         id: verify
         env:
-          UT_EMAIL: ${{ fromJson(steps.parse.outputs.jsonString).ut_email }}
+          EDU_EMAIL: ${{ fromJson(steps.parse.outputs.jsonString).edu_email }}
           MEMBER_URL: ${{ fromJson(steps.parse.outputs.jsonString).website_url }}
         run: |
           NORMALIZED_URL="$(python3 - <<'PY'
@@ -56,7 +56,7 @@ jobs:
           PY
           )"
 
-          if [[ -n "$UT_EMAIL" && "$UT_EMAIL" =~ ^[A-Za-z0-9._%+-]+@([A-Za-z0-9-]+\.)*utexas\.edu$ && -n "$NORMALIZED_URL" ]]; then
+          if [[ -n "$EDU_EMAIL" && "$EDU_EMAIL" =~ ^[A-Za-z0-9._%+-]+@([A-Za-z0-9-]+\.)*edu$ && -n "$NORMALIZED_URL" ]]; then
             echo "status=verified" >> "$GITHUB_OUTPUT"
             echo "member_url=$NORMALIZED_URL" >> "$GITHUB_OUTPUT"
           else
@@ -84,4 +84,4 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh issue comment ${{ github.event.issue.number }} --body "could not verify this request automatically. please make sure you used a valid http(s) website URL and an @utexas.edu email. @krisub can still take a look manually!"
+          gh issue comment ${{ github.event.issue.number }} --body "could not verify this request automatically. please make sure you used a valid http(s) website URL and a .edu email. @krisub can still take a look manually!"
