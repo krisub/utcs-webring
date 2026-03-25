@@ -3,6 +3,10 @@ on:
   issues:
     types: [opened]
 
+concurrency:
+  group: members-json-updates
+  cancel-in-progress: false
+
 jobs:
   verify-and-add:
     if: contains(github.event.issue.labels.*.name, 'add-me')

@@ -10,7 +10,9 @@ all the people that know me.
 
 after submitting your issue, copy and paste this HTML snippet into your
 website's homepage where you want the webring navigation to appear. replace 
-`YOUR_WEBSITE_URL` in the code below with your actual website link.
+`YOUR_WEBSITE_URL` in the code below with your actual website link. anchor
+text can be changed as you wish, but please make sure not to modify the
+links for prev and next!
 
 ```html
 <div style="text-align: left; margin: 30px 0;">

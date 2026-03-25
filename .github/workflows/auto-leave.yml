@@ -5,6 +5,10 @@ on:
   issue_comment:
     types: [created]
 
+concurrency:
+  group: members-json-updates
+  cancel-in-progress: false
+
 jobs:
   create-challenge:
     if: github.event_name == 'issues' && contains(github.event.issue.labels.*.name, 'remove-me')
